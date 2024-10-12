@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import Sequential
@@ -9,7 +10,6 @@ from tensorflow.keras.layers import Dense
 import streamlit as st
 
 # Step 1: Fetch Historical Data
-@st.cache_data
 def fetch_data():
     nifty_ticker = "^NSEI"  # Nifty 50 index
     gold_ticker = "GC=F"    # Gold futures
@@ -26,6 +26,7 @@ def fetch_data():
 
     # Get the last available date
     last_date = nifty_data.index[-1].date()  # Get last date for Nifty data
+    print(f"Last available market date: {last_date}")
 
     # Keep only the 'Close' price from each data source
     nifty_data = nifty_data[['Close']].rename(columns={'Close': 'Nifty_Close'})
@@ -43,7 +44,6 @@ def fetch_data():
     return data, last_date
 
 # Step 2: Train Models
-@st.cache_resource
 def train_models(data):
     # Prepare Feature and Target Variables
     X = data[['Gold_Close', 'Crude_Close', 'SP500_Close', 'USD_INR']].values
@@ -53,7 +53,7 @@ def train_models(data):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Train Random Forest Model
-    rf_model = RandomForestRegressor(n_estimators=50, random_state=42)  # Reduced number of trees
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
     rf_model.fit(X_train, y_train)
 
     # Train Neural Network Model
@@ -61,11 +61,11 @@ def train_models(data):
     X_train_scaled = scaler.fit_transform(X_train)
     
     nn_model = Sequential()
-    nn_model.add(Dense(32, activation='relu', input_dim=X_train_scaled.shape[1]))  # Reduced neurons
-    nn_model.add(Dense(32, activation='relu'))  # Reduced neurons
+    nn_model.add(Dense(64, activation='relu', input_dim=X_train_scaled.shape[1]))
+    nn_model.add(Dense(64, activation='relu'))
     nn_model.add(Dense(1))
     nn_model.compile(optimizer='adam', loss='mean_squared_error')
-    nn_model.fit(X_train_scaled, y_train, epochs=30, batch_size=32, validation_split=0.1, verbose=0)  # Reduced epochs
+    nn_model.fit(X_train_scaled, y_train, epochs=50, batch_size=32, validation_split=0.1, verbose=0)
 
     return rf_model, nn_model, scaler
 
@@ -103,7 +103,6 @@ if st.button("Predict"):
     nn_direction = "Bullish" if future_nifty_nn > current_nifty_value else "Bearish"
     nn_percent_change = abs((future_nifty_nn - current_nifty_value) / current_nifty_value) * 100
 
-    # Display results
-    st.write(f"Last available market date: {last_date}")
-    st.write(f"Predicted Next Nifty Value (Random Forest): {future_nifty_rf[0]:.2f} - {rf_direction} ({rf_percent_change:.2f}% change)")
-    st.write(f"Predicted Next Nifty Value (Neural Network): {future_nifty_nn:.2f} - {nn_direction} ({nn_percent_change:.2f}% change)")
+    # Display the predictions
+    st.write(f"Predicted Next Nifty Value (Random Forest): {future_nifty_rf:.2f} ({rf_direction} - {rf_percent_change:.2f}% change)")
+    st.write(f"Predicted Next Nifty Value (Neural Network): {future_nifty_nn:.2f} ({nn_direction} - {nn_percent_change:.2f}% change)")
